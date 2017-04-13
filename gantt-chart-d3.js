@@ -23,6 +23,7 @@ top : 20,
     var width = document.body.clientWidth - margin.right - margin.left-5;
 
     var tickFormat = "%H:%M";
+    var highlightRanges = [];
 
     var keyFunction = function(d) {
         return d.startDate + d.taskName + d.endDate;
@@ -30,6 +31,10 @@ top : 20,
 
     var rectTransform = function(d) {
         return "translate(" + x(d.startDate) + "," + y(d.taskName) + ")";
+    };
+
+    var highlightTransform = function(d) {
+        return "translate(" + x(d[0]) + ",0)";
     };
 
     var x = d3.time.scale().domain([ timeDomainStart, timeDomainEnd ]).range([ 0, width ]).clamp(true);
@@ -73,34 +78,63 @@ top : 20,
         initTimeDomain(tasks);
         initAxis();
 
-        var svg = d3.select(selector)
+        var svgroot = d3.select(selector)
             .append("svg")
             .attr("class", "chart")
             .attr("width", width + margin.left + margin.right)
-            .attr("height", height + margin.top + margin.bottom)
+            .attr("height", height + margin.top + margin.bottom);
+        var svg = svgroot
             .append("g")
             .attr("class", "gantt-chart")
             .attr("width", width + margin.left + margin.right)
             .attr("height", height + margin.top + margin.bottom)
             .attr("transform", "translate(" + margin.left + ", " + margin.top + ")");
 
-        svg.selectAll(".chart")
-            .data(tasks, keyFunction).enter()
+        var highlightBox = svgroot
+            .append("g")
+            .attr("class","gantt-highlights")
+            .attr("width", width + margin.left + margin.right)
+            .attr("height", height + margin.top + margin.bottom)
+            .attr("transform", "translate(" + margin.left + ", " + margin.top + ")");
+        
+        var highlights = highlightBox.selectAll(".highlight")
+            .data(highlightRanges).enter()
             .append("rect")
+            .attr("class","highlight")
+            .attr("transform",highlightTransform)
+            .attr("height", function(d) { return height - margin.top - margin.bottom; })
+            .attr("width", function(d) { 
+                return Math.max(1,(x(d[1]) - x(d[0]))); 
+            });
+
+        var gs = svg.selectAll(".chart")
+            .data(tasks, keyFunction).enter()
+            .append("g")
+            .attr("y", 0)
+            .attr("transform", rectTransform);
+
+        gs.append("rect")
             .attr("rx", 5)
             .attr("ry", 5)
             .attr("class", function(d){ 
-                    if(taskStatus[d.status] == null){ return "bar";}
-                    return taskStatus[d.status];
-                    }) 
-        .attr("y", 0)
-            .attr("transform", rectTransform)
+                if(taskStatus[d.status] == null){ return "bar";}
+                return taskStatus[d.status];
+            })
             .attr("height", function(d) { return y.rangeBand(); })
             .attr("width", function(d) { 
-                    return Math.max(1,(x(d.endDate) - x(d.startDate))); 
-                    });
+                return Math.max(1,(x(d.endDate) - x(d.startDate))); 
+            });
 
-
+            /*
+        gs.append("text")
+            .text("foo")
+            .attr("fill","white")
+            .attr("height", function(d) { return y.rangeBand(); })
+            .attr("width", function(d) { 
+                return Math.max(1,(x(d.endDate) - x(d.startDate))); 
+            });
+            */
+        
         svg.append("g")
             .attr("class", "x axis")
             .attr("transform", "translate(0, " + (height - margin.top - margin.bottom) + ")")
@@ -114,39 +148,40 @@ top : 20,
     };
 
     gantt.redraw = function(tasks) {
-
         initTimeDomain(tasks);
         initAxis();
 
         var svg = d3.select(".chart");
 
         var ganttChartGroup = svg.select(".gantt-chart");
-        var rect = ganttChartGroup.selectAll("rect").data(tasks, keyFunction);
+        var g = ganttChartGroup.selectAll("rect").data(tasks, keyFunction);
 
-        rect.enter()
+        //TODO fix this
+        g.enter()
             .insert("rect",":first-child")
             .attr("rx", 5)
             .attr("ry", 5)
             .attr("class", function(d){ 
-                    if(taskStatus[d.status] == null){ return "bar";}
-                    return taskStatus[d.status];
-                    }) 
-        .transition()
+                if(taskStatus[d.status] == null){ return "bar";}
+                return taskStatus[d.status];
+            }) 
+            .transition()
             .attr("y", 0)
             .attr("transform", rectTransform)
             .attr("height", function(d) { return y.rangeBand(); })
             .attr("width", function(d) { 
-                    return Math.max(1,(x(d.endDate) - x(d.startDate))); 
-                    });
+                return Math.max(1,(x(d.endDate) - x(d.startDate))); 
+            });
 
-        rect.transition()
+        g.transition()
+            .select("rect")
             .attr("transform", rectTransform)
             .attr("height", function(d) { return y.rangeBand(); })
             .attr("width", function(d) { 
                     return Math.max(1,(x(d.endDate) - x(d.startDate))); 
                     });
 
-        rect.exit().remove();
+        g.exit().remove();
 
         svg.select(".x").transition().call(xAxis);
         svg.select(".y").transition().call(yAxis);
@@ -213,6 +248,13 @@ top : 20,
         if (!arguments.length)
             return tickFormat;
         tickFormat = value;
+        return gantt;
+    };
+
+    gantt.highlightRanges = function(value) {
+        if (!arguments.length)
+            return tickFormat;
+        highlightRanges = value;
         return gantt;
     };
 
